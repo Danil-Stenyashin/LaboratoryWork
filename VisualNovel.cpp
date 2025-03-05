@@ -22,9 +22,98 @@ void clearScreen() {
 
 
 
-void print(const std::string& text, int delay = 30) {
-    for (size_t i = 0; i < text.length(); ++i) {
 
+
+
+
+class Location {
+private:
+    std::string name;
+    std::string description;
+
+public:
+    Location(const std::string& n, const std::string& desc)
+        : name(n), description(desc) {}
+
+    std::string getName() const { return name; }
+    std::string getDescription() const { return description; }
+};
+
+
+
+
+
+
+
+class Map {
+private:
+    std::vector<Location> locations;
+    std::string currentLocation;  // Храним текущую локацию
+
+public:
+    void addLocation(const Location& loc) {
+        locations.push_back(loc);
+    }
+
+    void showLocation(const std::string& locationName) {
+        for (const Location& loc : locations) {
+            if (loc.getName() == locationName) {
+                std::cout << "Вы находитесь в " << loc.getName() << std::endl;
+                std::cout << loc.getDescription() << std::endl;
+                currentLocation = locationName;  // Запоминаем текущую локацию
+                return;
+            }
+        }
+        std::cout << "Локация не найдена!" << std::endl;
+    }
+
+    std::string getCurrentLocation() const {
+        return currentLocation;
+    }
+};
+
+
+class MapLoader {
+public:
+    void loadMapFromFile(const std::string& filename, Map& gameMap) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Ошибка при открытии файла карты: " << filename << std::endl;
+            return;
+        }
+
+        std::string line;
+        bool readingLocations = false;
+
+        while (std::getline(file, line)) {
+            if (line.empty()) continue;
+
+            if (line == "# Локации") {
+                readingLocations = true;
+                continue;
+            }
+
+            if (readingLocations) {
+                // Читаем локации и их описания
+                std::string locationName = line;
+                // Удаляем кавычки, если они есть
+                if (locationName.front() == '"') locationName.erase(locationName.begin());
+                if (locationName.back() == '"') locationName.pop_back();
+                std::getline(file, line);
+                Location newLocation(locationName, line);
+                gameMap.addLocation(newLocation);
+            }
+        }
+    }
+};
+
+
+
+void print(const std::string& text, int delay = 30) {
+    Map map;
+    MapLoader mapLoader;
+    mapLoader.loadMapFromFile("game/map.txt", map); // Указывать строго в родительном падеже!
+    for (size_t i = 0; i < text.length(); ++i) {
         if (text[i] == '\\' && i + 1 < text.length() && text[i + 1] == 'n') {
             std::this_thread::sleep_for(std::chrono::milliseconds(delay));
             std::cout << std::endl;
@@ -39,6 +128,20 @@ void print(const std::string& text, int delay = 30) {
             std::cin.sync();
             std::cin.get();
             clearScreen();
+        } else if (text[i] == '~' && i + 1 < text.length() && text[i + 1] == 'm') { // Проверяем ~mНазвание
+            size_t startPos = i + 2;  // Начинаем сразу после ~m
+            size_t endPos = text.find(' ', startPos);  // Ищем первый пробел
+
+            // Если пробела нет, используем всю строку до конца
+            if (endPos == std::string::npos) {
+                endPos = text.length();
+            }
+
+            std::string location = text.substr(startPos, endPos - startPos);
+            std::transform(location.begin(), location.end(), location.begin(), ::toupper);  // Преобразуем в верхний регистр
+            map.showLocation(location);  
+            i = endPos - 1; 
+            continue;
         } else {
             std::cout << text[i] << std::flush;
             if (text[i] != ' ') {
@@ -48,6 +151,8 @@ void print(const std::string& text, int delay = 30) {
     }
     std::cout << std::endl;
 }
+
+
 
 
 
@@ -211,79 +316,9 @@ public:
 
 
 
-class Location {
-private:
-    std::string name;
-    std::string description;
-    
-public:
-    Location(const std::string& n, const std::string& desc) : name(n), description(desc) {}
-
-    std::string getName() const { return name; }
-    std::string getDescription() const { return description; }
-};
 
 
 
-
-
-
-
-class Map {
-private:
-    std::vector<Location> locations;  // Храним только локации
-
-public:
-    void addLocation(const Location& loc) {
-        locations.push_back(loc);
-    }
-
-    void showLocation(const std::string& locationName) {
-        for (const Location& loc : locations) {
-            if (loc.getName() == locationName) {
-                std::cout << "Вы находитесь в " << loc.getName() << std::endl;
-                std::cout << "Описание: " << loc.getDescription() << std::endl;
-                return;
-            }
-        }
-        std::cout << "Локация не найдена!" << std::endl;
-    }
-};
-
-
-
-
-
-class MapLoader {
-public:
-    static void loadMapFromFile(const std::string& filename, Map& gameMap) {
-        std::ifstream file(filename);
-        if (!file.is_open()) {
-            std::cerr << "Ошибка при открытии файла карты: " << filename << std::endl;
-            return;
-        }
-
-        std::string line;
-        bool readingLocations = false;
-
-        while (std::getline(file, line)) {
-            if (line.empty()) continue;
-
-            if (line == "# Локации") {
-                readingLocations = true;
-                continue;
-            }
-
-            if (readingLocations) {
-                // Читаем локации и их описания
-                std::string locationName = line;
-                std::getline(file, line);  
-                Location newLocation(locationName, line);
-                gameMap.addLocation(newLocation);
-            }
-        }
-    }
-};
 
 
 
@@ -522,28 +557,14 @@ public:
 };
 
 
-class MainMenu {
-private:
-    Game game;    
-public:
-        
-    print("---------Главное Меню---------",0);
-    print("(1) Играть\n(2)Посмотреть локацию\n(3)Посмотреть характеристики");
-    int choise = handleInput(1, 3);
-    if (choice == 1) {
-        clearScreen();
-        game.start();       
-    }
-    if (choice == 2) {
-        clearScreen();
-        gameMap.showLocation("Локация1");       
-    }     
 
 class Game {
 private:
     Player* player;
     GameState state;  
     StoryManager storyManager;
+    Map map;
+    MapLoader mapLoader;
     Saves save;
     Logs log;
 public:
@@ -559,7 +580,7 @@ public:
     
     Game() : state() {} 
     void start() {
-    
+         
         log.initializeLogFile();
         std::string lastProgress = save.loadProgress();
         
@@ -583,8 +604,8 @@ public:
         if (choice == 1) {
             saveGame();
             clearScreen();
-            MapLoader::loadMapFromFile("game/map.txt", gameMap);
             storyManager.newGame();
+            
         } else {
             print("Игра завершена.");
             clearScreen();
@@ -596,13 +617,67 @@ public:
 
 
 
+class MainMenu {
+private:
+    Game game;    
+    Map map;
+    GameState state;
+    MapLoader mapLoader;
+    
+public:
+    void menu() {
+    
+    while (true) {    
+	    
+	    print("---------Главное Меню---------",0);
+	    print("(1) Играть\n(2) Посмотреть локацию\n(3) Посмотреть характеристики\n(4) Выйти",1);
+	    
+	    
+	    int choice = handleInput(1, 4);
+	    
+	    
+	    if (choice == 1) {
+		clearScreen();
+		game.start();
+		       
+	    } else if (choice == 2) {
+		clearScreen();
+		print("Текущая локация: " + map.getCurrentLocation());  
+	    
+	    } else if (choice == 3) {
+		clearScreen();
+
+		print("Имя игрока: " + state.playerName);
+		print("Здоровье: " + std::to_string(state.health));
+		print("Психическое состояние: " + std::to_string(state.sanity));
+		print("Репутация: " + std::to_string(state.reputation));
+		print("Инвентарь:");
+		for (const std::string& item : state.inventory) {
+		            print("- " + item);      
+	        }
+	    
+	    } else if (choice == 4) {
+                print("Выход из игры...",40);
+                clearScreen();
+                std::cout << "Выход из игры";
+                print("...",500);
+                clearScreen();
+                std::cout << "Выход из игры";
+                print("...",1000);
+	        exit(0);
+	    
+	    }   
+    }  
+    }
+};
+
+
 
 
 int main() {
     clearScreen();
-    Map gameMap;
-    gameMap.showLocation("Локация1");
-    Game game;
-    game.start();
+    MainMenu main;
+    main.menu();
     return 0;
 }
+
