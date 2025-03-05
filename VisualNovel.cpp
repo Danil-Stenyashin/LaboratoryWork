@@ -1,3 +1,8 @@
+// Danil Stenyashin st128493@student.spbu.ru
+// Sunny PUNK
+
+
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -22,6 +27,22 @@ void clearScreen() {
 
 
 
+
+class Player {
+public:
+    std::string name;
+    int health;
+    int sanity;
+
+    Player(std::string n) : name(n), health(100), sanity(100) {}
+
+    void changeAttributes(int healthChange, int sanityChange) {
+        health += healthChange;
+        sanity += sanityChange;
+        if (health < 0) health = 0;
+        if (sanity < 0) sanity = 0;
+    }
+};
 
 
 
@@ -141,7 +162,6 @@ void print(const std::string& text, int delay = 30) {
             std::transform(location.begin(), location.end(), location.begin(), ::toupper);  // Преобразуем в верхний регистр
             map.showLocation(location);  
             i = endPos - 1; 
-            continue;
         } else {
             std::cout << text[i] << std::flush;
             if (text[i] != ' ') {
@@ -317,23 +337,6 @@ public:
 
 
 
-
-
-
-
-
-
-
-
-
-
-class Player {
-private:
-    std::string name;
-public:
-    Player(std::string n) : name(n) {}
-    std::string getName() { return name; }
-};
 
 
 
@@ -578,7 +581,7 @@ public:
         print("Загрузка выполнена.", 30);
     }
     
-    Game() : state() {} 
+    Game() : state(50, "Коля", 100, 100) {}
     void start() {
          
         log.initializeLogFile();
@@ -667,11 +670,9 @@ public:
 	        exit(0);
 	    
 	    }   
-    }  
+        }  
     }
 };
-
-
 
 
 int main() {
@@ -680,4 +681,3 @@ int main() {
     main.menu();
     return 0;
 }
-
