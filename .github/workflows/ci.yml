@@ -1,0 +1,26 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout репозиторий
+        uses: actions/checkout@v3
+
+      - name: Установка компилятора
+        run: sudo apt-get update && sudo apt-get install -y g++
+
+      - name: Компиляция
+        run: make
+
+      - name: Запуск тестов
+        run: ./tests/test_runner
+
