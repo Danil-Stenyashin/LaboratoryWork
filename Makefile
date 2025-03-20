@@ -2,10 +2,10 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Werror
 GTEST_LIBS = -lgtest -lgtest_main -pthread
 
-SRC = VisualNovel.cpp main.cpp
+SRC = VisualNovel.cpp Character.cpp Player.cpp
 TEST_SRC = test.cpp
 OBJ = $(SRC:.cpp=.o)
-TEST_OBJ = $(TEST_SRC:.cpp=.o)
+TEST_OBJ = $(TEST_SRC:.cpp=.o) Character.o Player.o  # Добавляем Character и Player в тесты
 EXEC = VisualNovel
 TEST_EXEC = runTests
 
@@ -14,8 +14,8 @@ all: $(EXEC)
 $(EXEC): $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $(EXEC) $(OBJ)
 
-tests: $(TEST_OBJ) $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $(TEST_EXEC) $(TEST_OBJ) $(OBJ) $(GTEST_LIBS)
+tests: $(TEST_OBJ)
+	$(CXX) $(CXXFLAGS) -o $(TEST_EXEC) $(TEST_OBJ) $(GTEST_LIBS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@

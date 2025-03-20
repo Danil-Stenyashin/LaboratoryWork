@@ -28,21 +28,40 @@ void clearScreen() {
 
 
 
-class Player {
+
+
+
+
+// Класс персонажа для хранения его характеристик
+class Character {
 public:
+
+    Character() : name(""), health(100), sanity(100) {}  
+
     std::string name;
     int health;
     int sanity;
 
-    Player(std::string n) : name(n), health(100), sanity(100) {}
+    Character(std::string name, int health = 100, int sanity = 100)
+        : name(std::move(name)), health(health), sanity(sanity) {}
 
-    void changeAttributes(int healthChange, int sanityChange) {
-        health += healthChange;
-        sanity += sanityChange;
+    void changeStats(int healthDelta, int sanityDelta) {
+        health += healthDelta;
+        sanity += sanityDelta;
         if (health < 0) health = 0;
         if (sanity < 0) sanity = 0;
+        std::cout << "Статус " << name << ": Здоровье " << health << ", Психика " << sanity << "\n";
     }
 };
+
+// Глобальный список персонажей
+std::unordered_map<std::string, Character> characters;
+
+// Функция для добавления персонажа в глобальный список
+void addCharacter(const std::string& name, int health = 100, int sanity = 100) {
+    characters[name] = Character(name, health, sanity);
+}
+
 
 
 
@@ -72,6 +91,8 @@ private:
     std::string currentLocation;  // Храним текущую локацию
 
 public:
+    Map(){}
+	
     void addLocation(const Location& loc) {
         locations.push_back(loc);
     }
@@ -92,6 +113,7 @@ public:
         return currentLocation;
     }
 };
+
 
 
 class MapLoader {
@@ -115,14 +137,20 @@ public:
             }
 
             if (readingLocations) {
-                // Читаем локации и их описания
                 std::string locationName = line;
+
                 // Удаляем кавычки, если они есть
-                if (locationName.front() == '"') locationName.erase(locationName.begin());
-                if (locationName.back() == '"') locationName.pop_back();
+                if (!locationName.empty() && locationName.front() == '"') locationName.erase(locationName.begin());
+                if (!locationName.empty() && locationName.back() == '"') locationName.pop_back();
+
                 std::getline(file, line);
-                Location newLocation(locationName, line);
+                std::string locationDescription = line;
+
+                Location newLocation(locationName, locationDescription);
                 gameMap.addLocation(newLocation);
+
+\
+                std::cout << "[DEBUG] Загружена локация: '" << locationName << "'" << std::endl;
             }
         }
     }
@@ -130,46 +158,59 @@ public:
 
 
 
+
+class TextProcessor {
+private:
+    static Map map;
+public:
+	static void processSpecialCharacters(const std::string& text, int delay) {
+		for (size_t i = 0; i < text.length(); ++i) {
+		    if (text[i] == '\\' && i + 1 < text.length() && text[i + 1] == 'n') {
+		        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+		        std::cout << "\n";
+		        ++i;
+		    } else if (text[i] == '@') {
+		        std::cout << "\n(Нажмите Enter для продолжения...)";
+		        std::cin.sync();
+		        std::cin.ignore();
+		        std::cin.get();
+		    } else if (text[i] == '|') {
+		        std::cin.sync();
+		        std::cin.get();
+		    } else if (text[i] == '~' && i + 1 < text.length() && text[i + 1] == 'm') {
+		        size_t startPos = i + 2;
+		        size_t endPos = text.find_first_of(" \t\n.,!?", startPos); // Ищем границу слова
+		        if (endPos == std::string::npos) {
+		            endPos = text.length();
+		        }
+		        std::string location = text.substr(startPos, endPos - startPos);
+		        
+		        // Очистка от лишних пробелов
+		        location.erase(0, location.find_first_not_of(" \t\n\r"));
+		        location.erase(location.find_last_not_of(" \t\n\r") + 1);
+
+		        // Приведение к верхнему регистру
+		        std::transform(location.begin(), location.end(), location.begin(), ::toupper);
+
+		        std::cout << "\n[DEBUG] Переход в локацию: " << location << std::endl;
+		        map.showLocation(location);
+		        i = endPos - 1;
+		    } else {
+		        std::cout << text[i] << std::flush;
+		        if (text[i] != ' ') {
+		            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+		        }
+		    }
+		}
+		std::cout << "\n";
+	}
+
+};
+
+Map TextProcessor::map;
+
 void print(const std::string& text, int delay = 30) {
-    Map map;
-    MapLoader mapLoader;
-    mapLoader.loadMapFromFile("game/map.txt", map); // Указывать строго в родительном падеже!
-    for (size_t i = 0; i < text.length(); ++i) {
-        if (text[i] == '\\' && i + 1 < text.length() && text[i + 1] == 'n') {
-            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-            std::cout << std::endl;
-            ++i;
-        } else if (text[i] == '@') { // Специальный символ для паузы
-            std::cout << std::endl << "(Нажмите Enter для продолжения...)";
-            std::cin.sync();
-            std::cin.ignore();
-            std::cin.get();
-            clearScreen();
-        } else if (text[i] == '|') { // Специальный символ для паузы без подсказки
-            std::cin.sync();
-            std::cin.get();
-            clearScreen();
-        } else if (text[i] == '~' && i + 1 < text.length() && text[i + 1] == 'm') { // Проверяем ~mНазвание
-            size_t startPos = i + 2;  // Начинаем сразу после ~m
-            size_t endPos = text.find(' ', startPos);  // Ищем первый пробел
-
-            // Если пробела нет, используем всю строку до конца
-            if (endPos == std::string::npos) {
-                endPos = text.length();
-            }
-
-            std::string location = text.substr(startPos, endPos - startPos);
-            std::transform(location.begin(), location.end(), location.begin(), ::toupper);  // Преобразуем в верхний регистр
-            map.showLocation(location);  
-            i = endPos - 1; 
-        } else {
-            std::cout << text[i] << std::flush;
-            if (text[i] != ' ') {
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-            }
-        }
-    }
-    std::cout << std::endl;
+    TextProcessor::processSpecialCharacters(text, delay);
 }
 
 
@@ -266,6 +307,7 @@ public:
         }
 
         std::ifstream file(filePath);
+
         if (!file.is_open()) {
             std::cout << "Ошибка: не удалось загрузить диалог " << dialogueName << std::endl;
             return;
@@ -303,30 +345,6 @@ public:
         save.saveProgress(choices[choice - 1].substr(0, 5));
         
         loadDialogue(choices[choice - 1].substr(0, 5));
-    }
-};
-
-
-
-
-
-class Character {
-protected:
-    std::string name;
-public:
-    Character(std::string n) : name(n) {}
-    virtual void speak() = 0;
-    std::string getName() { return name; }
-};
-
-
-
-
-class Heroine : public Character {
-public:
-    Heroine(std::string n) : Character(n) {}
-    void speak() override {
-        print(name + ": Привет, Коля. Ты ведь тоже не знаешь, как здесь оказался?");
     }
 };
 
@@ -540,15 +558,9 @@ public:
 
 class StoryManager {
 private:
-    std::vector<Heroine> heroines;
     DialogueManager dialogueManager;
     Saves save;
 public:
-    StoryManager() {
-        heroines.push_back(Heroine("Алиса"));
-        heroines.push_back(Heroine("Лена"));
-        heroines.push_back(Heroine("Арслан"));
-    }
     void startGame() {
         std::string lastDialogue = save.loadProgress();
         dialogueManager.loadDialogue(lastDialogue);
@@ -563,7 +575,6 @@ public:
 
 class Game {
 private:
-    Player* player;
     GameState state;  
     StoryManager storyManager;
     Map map;
@@ -677,6 +688,7 @@ public:
 
 int main() {
     clearScreen();
+		
     MainMenu main;
     main.menu();
     return 0;
