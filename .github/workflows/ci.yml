@@ -1,26 +1,28 @@
-name: C++ CI
+name: C++ CI with Make
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+on: [push, pull_request]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout репозиторий
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Установка компилятора
-        run: sudo apt-get update && sudo apt-get install -y g++
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y g++ make cmake libgtest-dev
 
-      - name: Компиляция
-        run: make
+    - name: Build GoogleTest
+      run: |
+        cd /usr/src/gtest
+        sudo cmake CMakeLists.txt
+        sudo make
+        sudo cp lib/*.a /usr/lib
 
-      - name: Запуск тестов
-        run: ./tests/test_runner
+    - name: Run tests via Makefile
+      working-directory: LaboratoryWork
+      run: make test
 
