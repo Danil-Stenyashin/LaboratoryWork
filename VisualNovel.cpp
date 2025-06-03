@@ -11,6 +11,9 @@
 #include <fstream>
 #include <functional>
 #include <filesystem>
+#include <unordered_set> // Для std::unordered_set
+#include <unordered_map> // Для std::unordered_map
+
 
 namespace fs = std::filesystem;
 
@@ -88,126 +91,237 @@ public:
 class Map {
 private:
     std::vector<Location> locations;
-    std::string currentLocation;  // Храним текущую локацию
+    std::string currentLocation;
+    std::unordered_set<std::string> visitedLocations;
 
 public:
-    Map(){}
-	
     void addLocation(const Location& loc) {
         locations.push_back(loc);
     }
-
-    void showLocation(const std::string& locationName) {
-        for (const Location& loc : locations) {
-            if (loc.getName() == locationName) {
-                std::cout << "Вы находитесь в " << loc.getName() << std::endl;
-                std::cout << loc.getDescription() << std::endl;
-                currentLocation = locationName;  // Запоминаем текущую локацию
-                return;
-            }
-        }
-        std::cout << "Локация не найдена!" << std::endl;
+    void setCurrentLocation(const std::string& name) {
+        currentLocation = name;
+        visitedLocations.insert(name);
     }
 
     std::string getCurrentLocation() const {
         return currentLocation;
     }
+
+    std::string getLocationDescription(const std::string& name) const {
+        for (const auto& loc : locations) {
+            if (loc.getName() == name) {
+                return loc.getDescription();
+            }
+        }
+        return "Локация не найдена";
+    }
+
+    bool isVisited(const std::string& name) const {
+        return visitedLocations.count(name) > 0;
+    }
+
+    std::vector<std::string> getVisitedLocations() const {
+        return {visitedLocations.begin(), visitedLocations.end()};
+    }
+
+    void loadState(const std::vector<std::string>& visitedLocs) {
+        for (const auto& loc : visitedLocs) {
+            visitedLocations.insert(loc);
+        }
+    }
 };
+
+
 
 
 
 class MapLoader {
 public:
     void loadMapFromFile(const std::string& filename, Map& gameMap) {
-        std::ifstream file(filename);
-        if (!file.is_open()) {
-            std::cerr << "Ошибка при открытии файла карты: " << filename << std::endl;
-            return;
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Ошибка при открытии файла карты: " << filename << std::endl;
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue; // Пропускаем комментарии
+
+        // Формат: "Название локации|Описание"
+        size_t delimiterPos = line.find('|');
+        if (delimiterPos == std::string::npos) {
+            std::cerr << "Ошибка формата строки: " << line << std::endl;
+            continue;
         }
 
-        std::string line;
-        bool readingLocations = false;
+        std::string name = line.substr(0, delimiterPos);
+        std::string desc = line.substr(delimiterPos + 1);
 
-        while (std::getline(file, line)) {
-            if (line.empty()) continue;
+        // Удаляем лишние пробелы и кавычки
+        name.erase(0, name.find_first_not_of(" \t\""));
+        name.erase(name.find_last_not_of(" \t\"") + 1);
+        desc.erase(0, desc.find_first_not_of(" \t\""));
+        desc.erase(desc.find_last_not_of(" \t\"") + 1);
 
-            if (line == "# Локации") {
-                readingLocations = true;
-                continue;
+        gameMap.addLocation(Location(name, desc));
+    	}
+	}
+};
+
+class GameState {
+public:
+    std::string currentLocation;
+    std::vector<std::string> visitedLocations;
+    int reputation;  // Репутация игрока
+    std::string playerName;  // Имя игрока
+    int health;  // Здоровье игрока
+    int sanity;  // Состояние психики игрока
+    std::vector<std::string> inventory;  // Инвентарь
+
+    void saveToFile(const std::string& filename) {
+        std::ofstream file(filename);
+        if (file.is_open()) {
+            // Сохраняем обычные данные
+            file << reputation << "\n" << playerName << "\n" << health << "\n" << sanity << "\n";
+            
+            // Сохраняем данные карты
+            file << currentLocation << "\n";
+            file << visitedLocations.size() << "\n";
+            for (const auto& loc : visitedLocations) {
+                file << loc << "\n";
             }
-
-            if (readingLocations) {
-                std::string locationName = line;
-
-                // Удаляем кавычки, если они есть
-                if (!locationName.empty() && locationName.front() == '"') locationName.erase(locationName.begin());
-                if (!locationName.empty() && locationName.back() == '"') locationName.pop_back();
-
-                std::getline(file, line);
-                std::string locationDescription = line;
-
-                Location newLocation(locationName, locationDescription);
-                gameMap.addLocation(newLocation);
-
-\
-                std::cout << "[DEBUG] Загружена локация: '" << locationName << "'" << std::endl;
+            
+            // Сохраняем инвентарь
+            file << inventory.size() << "\n";
+            for (const auto& item : inventory) {
+                file << item << "\n";
             }
         }
+    }
+
+    GameState(int rep = 50, const std::string& name = "Коля", int hp = 100, int sn = 100)
+        : reputation(rep), playerName(name), health(hp), sanity(sn) {}
+
+
+
+    void loadFromFile(const std::string& filename) {
+    std::ifstream file(filename);
+    if (file.is_open()) {
+   		file >> reputation;
+        file.ignore();
+        std::getline(file, playerName);
+        file >> health >> sanity;
+        file.ignore();
+        std::getline(file, currentLocation);  // Загружаем локацию
+        std::getline(file, playerName);
+        file >> health >> sanity;
+        size_t itemCount;
+        file >> itemCount;
+        file.ignore();
+        inventory.clear();
+        for (size_t i = 0; i < itemCount; ++i) {
+            std::string item;
+            std::getline(file, item);
+            inventory.push_back(item);
+            }
+        file.close();
+        }
+    }
+
+};
+
+class GameState; 
+
+class TextProcessor {
+private:
+    static Map map;
+    static GameState* gameState;
+    
+    static std::string extractLocationName(const std::string& text, size_t start) {
+        size_t end = text.find_first_of(" \t\n.,!?", start);
+        if (end == std::string::npos) end = text.length();
+        std::string location = text.substr(start, end - start);
+        // Очистка от лишних пробелов
+        location.erase(0, location.find_first_not_of(" \t\n\r"));
+        location.erase(location.find_last_not_of(" \t\n\r") + 1);
+        // Приведение к верхнему регистру
+        std::transform(location.begin(), location.end(), location.begin(), ::toupper);
+        return location;
+    }
+
+public:
+
+    static Map& getMap() { return map; }
+    static const Map& getConstMap() { return map; }
+
+    static std::vector<std::string> getVisitedLocations() {
+        return map.getVisitedLocations();
+    }
+    
+    static void loadMapState(const std::vector<std::string>& locations) {
+        map.loadState(locations);
+    }
+    
+    static void setCurrentMapLocation(const std::string& location) {
+        map.setCurrentLocation(location);
+    }
+
+    static void bindGameState(class GameState* state) {
+        gameState = state;
+    }
+
+    static std::string getCurrentLocation() {
+        return map.getCurrentLocation();
+    }
+
+    static std::string getCurrentLocationDescription() {
+        return map.getLocationDescription(map.getCurrentLocation()); 
+    }
+    static void setMap(const Map& newMap) {
+        map = newMap;  // Публичный метод для установки карты
+    }
+    static void processSpecialCharacters(const std::string& text, int delay) {
+        for (size_t i = 0; i < text.length(); ++i) {
+            if (text[i] == '\\' && i + 1 < text.length() && text[i + 1] == 'n') {
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                std::cout << "\n";
+                ++i;
+            } 
+            else if (text[i] == '@') {
+                std::cout << "\n(Нажмите Enter для продолжения...)";
+                std::cin.sync();
+                std::cin.ignore();
+                std::cin.get();
+            } 
+            else if (text[i] == '|') {
+                std::cin.sync();
+                std::cin.get();
+                clearScreen();
+            } 
+            else if (text[i] == '~' && i+1 < text.length() && text[i+1] == 'm') {
+                std::string loc = extractLocationName(text, i+2);
+                map.setCurrentLocation(loc);
+                if (gameState) {
+                    gameState->currentLocation = loc; // Сохраняем в GameState
+                }
+                i += loc.length() + 1;
+            }
+            else {
+                std::cout << text[i] << std::flush;
+                if (text[i] != ' ') {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                }
+            }
+        }
+        std::cout << "\n";
     }
 };
 
 
 
-
-class TextProcessor {
-private:
-    static Map map;
-public:
-	static void processSpecialCharacters(const std::string& text, int delay) {
-		for (size_t i = 0; i < text.length(); ++i) {
-		    if (text[i] == '\\' && i + 1 < text.length() && text[i + 1] == 'n') {
-		        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-		        std::cout << "\n";
-		        ++i;
-		    } else if (text[i] == '@') {
-		        std::cout << "\n(Нажмите Enter для продолжения...)";
-		        std::cin.sync();
-		        std::cin.ignore();
-		        std::cin.get();
-		    } else if (text[i] == '|') {
-		        std::cin.sync();
-		        std::cin.get();
-		    } else if (text[i] == '~' && i + 1 < text.length() && text[i + 1] == 'm') {
-		        size_t startPos = i + 2;
-		        size_t endPos = text.find_first_of(" \t\n.,!?", startPos); // Ищем границу слова
-		        if (endPos == std::string::npos) {
-		            endPos = text.length();
-		        }
-		        std::string location = text.substr(startPos, endPos - startPos);
-		        
-		        // Очистка от лишних пробелов
-		        location.erase(0, location.find_first_not_of(" \t\n\r"));
-		        location.erase(location.find_last_not_of(" \t\n\r") + 1);
-
-		        // Приведение к верхнему регистру
-		        std::transform(location.begin(), location.end(), location.begin(), ::toupper);
-
-		        std::cout << "\n[DEBUG] Переход в локацию: " << location << std::endl;
-		        map.showLocation(location);
-		        i = endPos - 1;
-		    } else {
-		        std::cout << text[i] << std::flush;
-		        if (text[i] != ' ') {
-		            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-		        }
-		    }
-		}
-		std::cout << "\n";
-	}
-
-};
-
 Map TextProcessor::map;
+GameState* TextProcessor::gameState = nullptr;
 
 void print(const std::string& text, int delay = 30) {
     TextProcessor::processSpecialCharacters(text, delay);
@@ -504,55 +618,9 @@ public:
 
 
 
-class GameState {
-public:
-    int reputation;  // Репутация игрока
-    std::string playerName;  // Имя игрока
-    int health;  // Здоровье игрока
-    int sanity;  // Состояние психики игрока
-    std::vector<std::string> inventory;  // Инвентарь
-
-    GameState(int rep = 50, const std::string& name = "Коля", int hp = 100, int sn = 100)
-        : reputation(rep), playerName(name), health(hp), sanity(sn) {}
 
 
-    void saveToFile(const std::string& filename) {
-        std::ofstream file(filename);
-        if (file.is_open()) {
-            file << reputation << std::endl;
-            file << playerName << std::endl;
-            file << health << std::endl;
-            file << sanity << std::endl;
-            file << inventory.size() << std::endl;  // Количество предметов в инвентаре
-            for (const std::string& item : inventory) {
-                file << item << std::endl;
-            }
-            file.close();
-        }
-    }
-
-    void loadFromFile(const std::string& filename) {
-        std::ifstream file(filename);
-        if (file.is_open()) {
-            file >> reputation;
-            file.ignore();  // Пропускаем символ новой строки после числа
-            std::getline(file, playerName);
-            file >> health;
-            file >> sanity;
-            size_t inventorySize;
-            file >> inventorySize;
-            file.ignore();  // Пропускаем символ новой строки после числа
-            inventory.clear();
-            for (size_t i = 0; i < inventorySize; ++i) {
-                std::string item;
-                std::getline(file, item);
-                inventory.push_back(item);
-            }
-            file.close();
-        }
-    }
-};
-
+class GameState; 
 
 
 
@@ -566,6 +634,7 @@ public:
         dialogueManager.loadDialogue(lastDialogue);
     }
     void newGame() {
+    	clearScreen();	
         dialogueManager.loadDialogue("start");
     }
     
@@ -577,33 +646,52 @@ class Game {
 private:
     GameState state;  
     StoryManager storyManager;
-    Map map;
-    MapLoader mapLoader;
+    Map gameMap;          // Основная карта игры
+    MapLoader mapLoader;  // Загрузчик карт
     Saves save;
     Logs log;
+
 public:
+	
     void saveGame() {
-        state.saveToFile(SAVE_STATES_FILE);  // Сохраняем состояние в файл
-        print("Сохранение выполнено.", 30);
+    state.currentLocation = TextProcessor::getCurrentLocation();
+    state.visitedLocations = TextProcessor::getVisitedLocations(); 
+    state.saveToFile(SAVE_FILE);
+	}
+    
+
+	void loadGame() {
+    state.loadFromFile(SAVE_FILE);
+    TextProcessor::loadMapState(state.visitedLocations);  // используем публичный метод
+    if (!state.currentLocation.empty()) {
+        TextProcessor::setCurrentMapLocation(state.currentLocation);  // используем публичный метод
+    }
+    print("Загрузка выполнена.", 30);
+	}
+
+    void showCurrentLocation() {
+        std::cout << "┌───────────────────────┐\n"
+                  << "│ Текущая локация: \033[1;33m" << state.currentLocation << "\033[0m │\n"
+                  << "└───────────────────────┘\n"
+                  << TextProcessor::getCurrentLocationDescription() << "\n\n";
+    }
+    Game() : state(50, "Коля", 100, 100) {
+        // Загружаем карту при старте игры
+        mapLoader.loadMapFromFile("game/map.txt", gameMap);
+        
+        // Устанавливаем карту через публичный метод
+        TextProcessor::setMap(gameMap);
     }
 
-    void loadGame() {
-        state.loadFromFile(SAVE_STATES_FILE);  // Загружаем состояние из файла
-        print("Загрузка выполнена.", 30);
-    }
-    
-    Game() : state(50, "Коля", 100, 100) {}
+
     void start() {
-         
         log.initializeLogFile();
         std::string lastProgress = save.loadProgress();
         
-
-        
         if (!lastProgress.empty() && lastProgress != "start") {
-            print("Обнаружено сохранение: " + lastProgress,30);
-            print("Продолжить с последнего момента?",30);
-            print("(1) Да\n(2) Начать заново",30);
+            print("Обнаружено сохранение: " + lastProgress, 100);
+            print("Продолжить с последнего момента?", 100);
+            print("(1) Да\n(2) Начать заново", 100);
             int choice = handleInput(1, 2);
             if (choice == 1) {
                 print("Продолжение игры...");
@@ -612,6 +700,7 @@ public:
                 return;
             }
         }
+        
         print("Вы хотите начать игру?");
         print("(1) Да\n(2) Нет");
         int choice = handleInput(1, 2);
@@ -619,7 +708,6 @@ public:
             saveGame();
             clearScreen();
             storyManager.newGame();
-            
         } else {
             print("Игра завершена.");
             clearScreen();
@@ -656,7 +744,7 @@ public:
 		       
 	    } else if (choice == 2) {
 		clearScreen();
-		print("Текущая локация: " + map.getCurrentLocation());  
+		game.showCurrentLocation();
 	    
 	    } else if (choice == 3) {
 		clearScreen();
@@ -684,11 +772,31 @@ public:
         }  
     }
 };
+class Player : public Character {
+private:
+    Inventory inventory;
+    Journal journal;
+
+public:
+    Player(const std::string& name)
+        : Character(name), inventory(), journal() {}
+
+    void addItemToInventory(const Item& item) {
+        inventory.addItem(item);
+    }
+
+    void addJournalEntry(const std::string& entry) {
+        journal.addEntry(entry);
+    }
+
+    void showStats() const {
+        std::cout << "Игрок: " << name << " | Здоровье: " << health << " | Психика: " << sanity << "\n";
+    }
+};
 
 
 int main() {
     clearScreen();
-		
     MainMenu main;
     main.menu();
     return 0;

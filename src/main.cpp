@@ -1,7 +1,5 @@
-// Danil Stenyashin st128493@student.spbu.ru
-// Sunny PUNK
-
-#include "MainMenu.h"
+#include "include/MainMenu.h"
+#include "include/utils.h"
 
 int main() {
     clearScreen();
@@ -9,4 +7,3 @@ int main() {
     main.menu();
     return 0;
 }
-

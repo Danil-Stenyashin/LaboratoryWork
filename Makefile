@@ -1,31 +1,30 @@
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Werror
-GTEST_LIBS = -lgtest -lgtest_main -pthread
+CXX := g++
+CXXFLAGS := -Wall -Wextra -pedantic -std=c++23 -I. -O3
+LDFLAGS := -pthread -lstdc++fs 
 
-SRC = VisualNovel.cpp Character.cpp Player.cpp
-TEST_SRC = test.cpp
-OBJ = $(SRC:.cpp=.o)
-TEST_OBJ = $(TEST_SRC:.cpp=.o) Character.o Player.o  # Добавляем Character и Player в тесты
-EXEC = VisualNovel
-TEST_EXEC = runTests
+SRC_DIR := src
+BUILD_DIR := build
+BIN_DIR := bin
+EXECUTABLE := $(BIN_DIR)/game
 
-all: $(EXEC)
+SOURCES := $(wildcard $(SRC_DIR)/*.cpp)
+OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 
-$(EXEC): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $(EXEC) $(OBJ)
+.PHONY: all clean run
 
-tests: $(TEST_OBJ)
-	$(CXX) $(CXXFLAGS) -o $(TEST_EXEC) $(TEST_OBJ) $(GTEST_LIBS)
+all: $(EXECUTABLE)
 
-%.o: %.cpp
+$(EXECUTABLE): $(OBJECTS)
+	@mkdir -p $(BIN_DIR)
+	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS) $(CXXFLAGS)
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+run: $(EXECUTABLE)
+	@echo "Запуск программы..."
+	@./$(EXECUTABLE)
+
 clean:
-	rm -f $(OBJ) $(TEST_OBJ) $(EXEC) $(TEST_EXEC)
-
-run: all
-	./$(EXEC)
-
-test: tests
-	./$(TEST_EXEC)
-
+	rm -rf $(BUILD_DIR) $(BIN_DIR)
