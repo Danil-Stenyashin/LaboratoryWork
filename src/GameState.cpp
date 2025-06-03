@@ -20,6 +20,7 @@ void GameState::saveToFile(const std::string& filename) {
     }
 }
 
+
 void GameState::loadFromFile(const std::string& filename) {
     std::ifstream file(filename);
     if (file.is_open()) {

@@ -1,11 +1,21 @@
 #ifndef SAVES_H
 #define SAVES_H
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
 #include <string>
 #include <unordered_map>
 
 class Saves {
 public:
+	void deleteAllSaves() {
+		if (fs::exists(SAVE_DIR)) {
+		    fs::remove_all(SAVE_DIR);
+		}
+	}
+    std::string loadProgress();
+    void saveProgress(const std::string& progress); 
     void saveGameState(const std::unordered_map<std::string, std::string>& gameData);
     
     void saveDialogueState(const std::string& dialogueId);

@@ -1,6 +1,8 @@
 #include "include/Game.h"
 #include "include/utils.h"
 
+const std::string PROGRESS_FILE = "game/saves/progress.txt";
+
 Game::Game() : state(50, "Коля", 100, 100) {
     mapLoader.loadMapFromFile("game/map.txt", gameMap);
     TextProcessor::setMap(gameMap);
@@ -30,31 +32,36 @@ void Game::showCurrentLocation() {
 
 void Game::start() {
     log.initializeLogFile();
-    std::string lastProgress = save.loadProgress();
     
-    if (!lastProgress.empty() && lastProgress != "start") {
-        print("Обнаружено сохранение: " + lastProgress, 100);
-        print("Продолжить с последнего момента?", 100);
-        print("(1) Да\n(2) Начать заново", 100);
+    if (fs::exists(SAVE_FILE) || fs::exists(PROGRESS_FILE)) {
+        print("Обнаружено сохранение. Продолжить игру?", 100);
+        print("(1) Да\n(2) Нет, начать заново", 100);
+        
         int choice = handleInput(1, 2);
         if (choice == 1) {
-            print("Продолжение игры...");
+            loadGame(); 
+            
+            std::string lastProgress = save.loadProgress();
+            if (!lastProgress.empty()) {
+                storyManager.setProgress(lastProgress);
+            }
+            
             clearScreen();
-            storyManager.startGame();
+            storyManager.continueGame();
             return;
+        }
+        else {
+            save.deleteAllSaves();
         }
     }
     
-    print("Вы хотите начать игру?", 50);
-    print("(1) Да\n(2) Нет", 50);
+    print("Начать новую игру?", 50);
+    print("(1) Да\n(2) Выйти в меню", 50);
+    
     int choice = handleInput(1, 2);
     if (choice == 1) {
-        saveGame();
-        clearScreen();
+        state.reset(); 
+        saveGame(); 
         storyManager.newGame();
-    } else {
-        print("Игра завершена.");
-        clearScreen();
-        exit(0);
     }
 }

@@ -5,6 +5,25 @@
 
 namespace fs = std::filesystem;
 
+const std::string PROGRESS_FILE = "game/saves/dialogue_save.txt";
+
+std::string Saves::loadProgress() {
+    auto gameData = loadGameState();
+    if (gameData.find("progress") != gameData.end()) {
+        return gameData["progress"];
+    }
+    return "start"; 
+}
+
+
+void Saves::saveProgress(const std::string& progress) {
+    ensureDirectoryExists();
+    std::ofstream file(PROGRESS_FILE); 
+    if (file.is_open()) {
+        file << progress;
+    }
+}
+
 void Saves::ensureDirectoryExists() const {
     if (!fs::exists(SAVE_DIR)) {
         fs::create_directories(SAVE_DIR);
